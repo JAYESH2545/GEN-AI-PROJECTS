@@ -1,0 +1,6 @@
+[tool.setuptools.packages.find]
+include = ["app*"]
+exclude = ["alembic*"]
+
+[tool.setuptools]
+packages = ["app"]
