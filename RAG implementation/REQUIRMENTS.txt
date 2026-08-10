@@ -1,0 +1,7 @@
+ollama
+faiss-cpu
+numpy
+pypdf
+ipywidgets
+ipython
+jupyter
