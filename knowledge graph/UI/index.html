@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>GraphRAG Document Upload</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            font-family: Arial, sans-serif;
+
+            background: #f5f7fb;
+            color: #172033;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 650px;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #687386;
+            margin-bottom: 30px;
+        }
+
+        .upload-card {
+            background: white;
+            border: 1px solid #e3e7ef;
+            border-radius: 18px;
+            padding: 35px;
+
+            box-shadow:
+                0 10px 30px rgba(0, 0, 0, 0.06);
+        }
+
+        .upload-area {
+            border: 2px dashed #b9c2d0;
+            border-radius: 15px;
+
+            padding: 50px 20px;
+
+            text-align: center;
+
+            transition: 0.2s;
+        }
+
+        .upload-area:hover {
+            border-color: #5068d8;
+            background: #f8f9ff;
+        }
+
+        .file-icon {
+            font-size: 55px;
+            margin-bottom: 15px;
+        }
+
+        .upload-area h2 {
+            margin-bottom: 8px;
+        }
+
+        .upload-area p {
+            color: #727d8f;
+            margin-bottom: 25px;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .choose-button {
+            display: inline-block;
+
+            padding: 12px 22px;
+
+            background: #5068d8;
+            color: white;
+
+            border-radius: 10px;
+
+            font-weight: bold;
+
+            cursor: pointer;
+        }
+
+        .choose-button:hover {
+            background: #4056c0;
+        }
+
+        .selected-file {
+            margin-top: 25px;
+
+            padding: 15px;
+
+            background: #f7f8fb;
+
+            border-radius: 10px;
+
+            display: none;
+        }
+
+        .file-name {
+            font-weight: bold;
+            word-break: break-all;
+        }
+
+        .file-size {
+            margin-top: 5px;
+            color: #727d8f;
+            font-size: 13px;
+        }
+
+        .upload-button {
+            width: 100%;
+
+            margin-top: 20px;
+
+            padding: 13px;
+
+            border: none;
+
+            border-radius: 10px;
+
+            background: #172033;
+            color: white;
+
+            font-size: 15px;
+            font-weight: bold;
+
+            cursor: pointer;
+        }
+
+        .upload-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .progress-container {
+            display: none;
+
+            margin-top: 25px;
+        }
+
+        .progress {
+            width: 100%;
+            height: 9px;
+
+            background: #e8ebf1;
+
+            border-radius: 20px;
+
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            width: 0%;
+            height: 100%;
+
+            background: #5068d8;
+
+            transition: width 0.2s;
+        }
+
+        .status {
+            margin-top: 20px;
+
+            padding: 13px;
+
+            border-radius: 10px;
+
+            display: none;
+
+            font-size: 14px;
+        }
+
+        .success {
+            display: block;
+            background: #eaf8f0;
+            color: #207446;
+        }
+
+        .error {
+            display: block;
+            background: #fff0f0;
+            color: #a53232;
+        }
+
+        .info {
+            display: block;
+            background: #eef2ff;
+            color: #4054aa;
+        }
+
+        .supported {
+            margin-top: 20px;
+
+            text-align: center;
+
+            font-size: 13px;
+
+            color: #7a8495;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>GraphRAG Document Upload</h1>
+
+    <div class="subtitle">
+        Upload a document to your ingestion pipeline
+    </div>
+
+
+    <div class="upload-card">
+
+        <div class="upload-area">
+
+            <div class="file-icon">
+                📄
+            </div>
+
+            <h2>
+                Select a document
+            </h2>
+
+            <p>
+                Choose one TXT, PDF, or DOCX file
+            </p>
+
+
+            <label
+                for="fileInput"
+                class="choose-button"
+            >
+                Choose File
+            </label>
+
+
+            <input
+                id="fileInput"
+                type="file"
+                accept=".txt,.pdf,.docx"
+            >
+
+        </div>
+
+
+        <!-- Selected file -->
+
+        <div
+            id="selectedFile"
+            class="selected-file"
+        >
+
+            <div
+                id="fileName"
+                class="file-name"
+            ></div>
+
+            <div
+                id="fileSize"
+                class="file-size"
+            ></div>
+
+        </div>
+
+
+        <!-- Upload button -->
+
+        <button
+            id="uploadButton"
+            class="upload-button"
+            disabled
+        >
+            Upload Document
+        </button>
+
+
+        <!-- Progress -->
+
+        <div
+            id="progressContainer"
+            class="progress-container"
+        >
+
+            <div class="progress">
+
+                <div
+                    id="progressBar"
+                    class="progress-bar"
+                ></div>
+
+            </div>
+
+        </div>
+
+
+        <!-- Status -->
+
+        <div
+            id="status"
+            class="status"
+        ></div>
+
+
+        <div class="supported">
+
+            Supported formats:
+            <strong>.TXT</strong>,
+            <strong>.PDF</strong>,
+            <strong>.DOCX</strong>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<script>
+
+    // ==========================================
+    // FASTAPI ENDPOINT
+    // ==========================================
+
+    const API_URL =
+        "http://127.0.0.1:8000/upload";
+
+
+    // ==========================================
+    // ELEMENTS
+    // ==========================================
+
+    const fileInput =
+        document.getElementById("fileInput");
+
+    const selectedFile =
+        document.getElementById("selectedFile");
+
+    const fileName =
+        document.getElementById("fileName");
+
+    const fileSize =
+        document.getElementById("fileSize");
+
+    const uploadButton =
+        document.getElementById("uploadButton");
+
+    const progressContainer =
+        document.getElementById("progressContainer");
+
+    const progressBar =
+        document.getElementById("progressBar");
+
+    const status =
+        document.getElementById("status");
+
+
+    let selectedDocument = null;
+
+
+    // ==========================================
+    // FILE SELECTED
+    // ==========================================
+
+    fileInput.addEventListener(
+        "change",
+        function() {
+
+            const file =
+                fileInput.files[0];
+
+
+            if (!file) {
+                return;
+            }
+
+
+            const allowedExtensions = [
+                ".txt",
+                ".pdf",
+                ".docx"
+            ];
+
+
+            const fileNameLower =
+                file.name.toLowerCase();
+
+
+            const valid =
+                allowedExtensions.some(
+                    function(extension) {
+
+                        return fileNameLower.endsWith(
+                            extension
+                        );
+
+                    }
+                );
+
+
+            if (!valid) {
+
+                showStatus(
+                    "This file type is not supported.",
+                    "error"
+                );
+
+                uploadButton.disabled = true;
+
+                return;
+            }
+
+
+            selectedDocument = file;
+
+
+            fileName.textContent =
+                file.name;
+
+
+            fileSize.textContent =
+                formatBytes(file.size);
+
+
+            selectedFile.style.display =
+                "block";
+
+
+            uploadButton.disabled =
+                false;
+
+
+            status.style.display =
+                "none";
+
+        }
+    );
+
+
+    // ==========================================
+    // UPLOAD
+    // ==========================================
+
+    uploadButton.addEventListener(
+        "click",
+        async function() {
+
+            if (!selectedDocument) {
+                return;
+            }
+
+
+            uploadButton.disabled =
+                true;
+
+
+            progressContainer.style.display =
+                "block";
+
+
+            progressBar.style.width =
+                "30%";
+
+
+            showStatus(
+                "Uploading document...",
+                "info"
+            );
+
+
+            const formData =
+                new FormData();
+
+
+            formData.append(
+                "file",
+                selectedDocument
+            );
+
+
+            try {
+
+                const response =
+                    await fetch(
+                        API_URL,
+                        {
+                            method: "POST",
+                            body: formData
+                        }
+                    );
+
+
+                progressBar.style.width =
+                    "80%";
+
+
+                const data =
+                    await response.json();
+
+
+                if (!response.ok) {
+
+                    throw new Error(
+                        data.detail ||
+                        "Upload failed"
+                    );
+
+                }
+
+
+                progressBar.style.width =
+                    "100%";
+
+
+                showStatus(
+                    "Document uploaded successfully!",
+                    "success"
+                );
+
+
+                console.log(
+                    "Server response:",
+                    data
+                );
+
+
+            }
+
+            catch (error) {
+
+                progressBar.style.width =
+                    "0%";
+
+
+                showStatus(
+                    "Upload failed: " +
+                    error.message,
+                    "error"
+                );
+
+
+                uploadButton.disabled =
+                    false;
+
+            }
+
+        }
+    );
+
+
+    // ==========================================
+    // STATUS MESSAGE
+    // ==========================================
+
+    function showStatus(
+        message,
+        type
+    ) {
+
+        status.textContent =
+            message;
+
+        status.className =
+            "status " + type;
+
+    }
+
+
+    // ==========================================
+    // FILE SIZE
+    // ==========================================
+
+    function formatBytes(bytes) {
+
+        if (bytes === 0) {
+            return "0 Bytes";
+        }
+
+
+        const units = [
+            "Bytes",
+            "KB",
+            "MB",
+            "GB"
+        ];
+
+
+        const index =
+            Math.floor(
+                Math.log(bytes) /
+                Math.log(1024)
+            );
+
+
+        return (
+            (bytes /
+            Math.pow(1024, index))
+            .toFixed(2)
+            + " "
+            + units[index]
+        );
+
+    }
+
+</script>
+
+</body>
+</html>
