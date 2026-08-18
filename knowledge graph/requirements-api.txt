@@ -1,0 +1,12 @@
+fastapi
+uvicorn[standard]
+python-multipart
+
+# Existing pipeline dependencies (install only if they are not already installed)
+pypdf
+python-docx
+sentence-transformers
+qdrant-client
+psycopg2-binary
+ollama
+neo4j
