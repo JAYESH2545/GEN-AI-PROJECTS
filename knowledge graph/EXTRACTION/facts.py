@@ -1,4 +1,5 @@
 import json
+import re
 import psycopg2
 import ollama
 
@@ -335,46 +336,48 @@ Required JSON structure:
 """
 
 
-    response = ollama.chat(
+    def parse_response(content):
+        """Parse strict JSON, including JSON wrapped in a markdown fence."""
+        candidates = [content.strip()]
+        fenced = re.search(r"```(?:json)?\s*(.*?)\s*```", content, re.IGNORECASE | re.DOTALL)
+        if fenced:
+            candidates.append(fenced.group(1).strip())
 
-        model=OLLAMA_MODEL,
+        for candidate in candidates:
+            try:
+                return FactExtractionResult.model_validate(json.loads(candidate))
+            except (json.JSONDecodeError, ValueError, TypeError):
+                continue
+        raise ValueError("Ollama returned invalid or truncated JSON")
 
-        messages=[
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ],
-
-        format=FactExtractionResult.model_json_schema(),
-
-        options={
-            "temperature": 0
-        }
-    )
-
-
-    content = response["message"]["content"]
-
-
-    
-    # Parse JSON returned by Ollama
-    
-
-    try:
-
-        data = json.loads(content)
-
-        result = FactExtractionResult.model_validate(data)
-
-    except Exception as e:
-
-        print("\nCould not parse Ollama response.")
-
-        print("Raw response:")
+    last_error = None
+    content = ""
+    for attempt in range(1, 4):
+        response = ollama.chat(
+            model=OLLAMA_MODEL,
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt + (
+                        "\n\nReturn a complete JSON object now. Do not use markdown or commentary."
+                        if attempt > 1 else ""
+                    )
+                }
+            ],
+            format=FactExtractionResult.model_json_schema(),
+            options={"temperature": 0}
+        )
+        content = response["message"]["content"]
+        try:
+            result = parse_response(content)
+            break
+        except ValueError as error:
+            last_error = error
+            print(f"Could not parse Ollama response (attempt {attempt}/3). Retrying...")
+    else:
+        print("\nRaw Ollama response:")
         print(content)
-
-        raise e
+        raise last_error
 
 
     
