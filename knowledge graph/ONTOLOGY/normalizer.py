@@ -1,11 +1,12 @@
 import os
 import sys
 import json
+import time
 
 from typing import List
 
 import psycopg2
-from openai import OpenAI
+import ollama
 from pydantic import BaseModel
 from neo4j import GraphDatabase
 
@@ -61,12 +62,17 @@ neo4j_driver = GraphDatabase.driver(
 
 
 # ============================================================
-# OpenAI
+# OLLAMA
 # ============================================================
 
-client = OpenAI(
-    api_key=os.getenv("OPENAI_API_KEY")
-)
+OLLAMA_MODEL = "qwen3:8b"
+
+# Local model calls have no network layer to time out on their own.
+OLLAMA_TIMEOUT = 120
+
+RETRIES = 3
+
+ollama_client = ollama.Client(timeout=OLLAMA_TIMEOUT)
 
 
 # ============================================================
@@ -270,16 +276,51 @@ Return only the normalized ontology.
 """
 
 
-    response = client.responses.parse(
+    last_error = None
 
-        model="gpt-4.1-mini",
+    for attempt in range(RETRIES):
 
-        input=prompt,
+        try:
 
-        text_format=NormalizedOntology
-    )
+            response = ollama_client.chat(
 
-    return response.output_parsed
+                model=OLLAMA_MODEL,
+
+                messages=[
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+
+                format=NormalizedOntology.model_json_schema(),
+
+                options={
+                    "temperature": 0
+                }
+            )
+
+            content = response["message"]["content"]
+
+            data = json.loads(content)
+
+            return NormalizedOntology.model_validate(data)
+
+        except Exception as e:
+
+            last_error = e
+
+            print(
+                f"  Ollama call failed "
+                f"(attempt {attempt + 1}/{RETRIES}): {e}"
+            )
+
+            if attempt < RETRIES - 1:
+                time.sleep(2 * (attempt + 1))
+
+    raise RuntimeError(
+        f"Ontology normalization failed after {RETRIES} attempts"
+    ) from last_error
 
 
 # ============================================================
@@ -463,10 +504,48 @@ def print_normalized_ontology(
 
 
 # ============================================================
+# CHECK OLLAMA
+# ============================================================
+
+def check_ollama():
+
+    print("\nChecking Ollama...")
+
+    try:
+
+        models = ollama.list()
+
+        installed_models = [model.model for model in models.models]
+
+        if not any(OLLAMA_MODEL in model for model in installed_models):
+
+            print(f"\nModel '{OLLAMA_MODEL}' is not installed.")
+            print(f"Run:\nollama pull {OLLAMA_MODEL}")
+
+            return False
+
+        print("✓ Ollama is ready.")
+        print(f"✓ Model: {OLLAMA_MODEL}")
+
+        return True
+
+    except Exception as e:
+
+        print("\nCould not connect to Ollama.")
+        print(e)
+        print("\nMake sure Ollama is installed and running.")
+
+        return False
+
+
+# ============================================================
 # MAIN
 # ============================================================
 
 def main():
+
+    if not check_ollama():
+        return
 
     print("\nReading ontology from PostgreSQL...")
 

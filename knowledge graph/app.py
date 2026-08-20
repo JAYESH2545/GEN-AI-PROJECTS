@@ -46,6 +46,14 @@ jobs: dict[str, dict[str, Any]] = {}
 jobs_lock = threading.Lock()
 ollama_lock = threading.Lock()  # A local model normally processes one request at a time.
 
+# Every Ollama call in the app (fact extraction in facts.py, and the
+# query call below) is serialized behind ollama_lock. Without a
+# timeout, one stuck call holds that lock forever and freezes fact
+# extraction AND querying for every other job on the server too — that
+# is what "the pipeline just stopped" looks like from the outside.
+OLLAMA_TIMEOUT = 120
+ollama_client = ollama.Client(timeout=OLLAMA_TIMEOUT)
+
 STAGES = ["upload", "chunking", "vector_store", "fact_extraction", "ontology", "graph"]
 
 
@@ -106,7 +114,14 @@ def ensure_collection(client: QdrantClient, vector_size: int) -> None:
 
 def store_document_vectors(job_id: str, chunks: list[str]) -> list[str]:
     client = qdrant_client()
-    vectors = create_embeddings(chunks)
+
+    def report_batch(done: int, total: int) -> None:
+        # Embedding a whole document is one call that can take minutes;
+        # without this the stage sits frozen at its starting percentage
+        # the entire time, which looks identical to a hang.
+        update_stage(job_id, "vector_store", "running", f"Embedded batch {done} of {total}", int(done * 90 / total))
+
+    vectors = create_embeddings(chunks, on_batch_done=report_batch)
     if len(vectors) != len(chunks):
         raise RuntimeError("Embedding count does not match chunk count.")
     ensure_collection(client, len(vectors[0]))
@@ -330,7 +345,7 @@ def query(request: QueryRequest) -> dict[str, Any]:
     prompt = f"""Answer only from the supplied source chunks and extracted facts. If the answer is not supported, say so. Be concise and cite chunk IDs in square brackets.\n\nQuestion: {question}\n\nExtracted facts:\n{fact_text}\n\nSource chunks:\n{evidence}"""
     try:
         with ollama_lock:
-            response = ollama.chat(model=OLLAMA_MODEL, messages=[{"role": "user", "content": prompt}], options={"temperature": 0})
+            response = ollama_client.chat(model=OLLAMA_MODEL, messages=[{"role": "user", "content": prompt}], options={"temperature": 0})
         answer = response["message"]["content"]
     except Exception as exc:
         answer = f"Relevant source chunks were found, but the local LLM is unavailable: {exc}"

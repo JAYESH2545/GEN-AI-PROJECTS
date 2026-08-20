@@ -15,9 +15,10 @@ Start the local services first:
 docker start qdrant
 
 # Start PostgreSQL and Neo4j if you want facts and the graph stages.
-# Start Ollama, then make sure the extractor's configured model is present.
+# Start Ollama, then make sure the configured models are present.
 ollama serve
-ollama pull qwen2.5:7b
+ollama pull qwen3:8b
+ollama pull qwen3-embedding:4b
 ```
 
 In a second PowerShell window, start the application:
@@ -48,6 +49,7 @@ facts, and answers continue to work. If Qdrant, PostgreSQL, or Ollama is
 unavailable, the job status displays the exact failed stage and error.
 
 The configuration still comes from the existing project files: database values
-are in `EXTRACTION/facts.py` and `ONTOLOGY/ontology.py`; the Ollama model is
-`qwen2.5:7b` in `EXTRACTION/facts.py`. Change those values there if your local
-setup differs.
+are in `EXTRACTION/facts.py` and `ONTOLOGY/ontology.py`; the Ollama chat model
+is `qwen3:8b` in `EXTRACTION/facts.py`, and the embedding model is
+`qwen3-embedding:4b` in `EXTRACTION/embedding.py`. Change those values there
+if your local setup differs.

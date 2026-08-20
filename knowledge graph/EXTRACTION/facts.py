@@ -36,7 +36,15 @@ TEXT_FIELD = "text"
 # OLLAMA CONFIG
 
 
-OLLAMA_MODEL = "qwen2.5:7b"
+OLLAMA_MODEL = "qwen3:8b"
+
+# Local model calls have no network layer to time out on their own.
+# app.py serializes every Ollama call behind one shared lock, so a
+# hung call here would freeze fact extraction AND querying for every
+# job on the server, not just this chunk — this timeout caps that.
+OLLAMA_TIMEOUT = 120
+
+ollama_client = ollama.Client(timeout=OLLAMA_TIMEOUT)
 
 
 
@@ -353,20 +361,25 @@ Required JSON structure:
     last_error = None
     content = ""
     for attempt in range(1, 4):
-        response = ollama.chat(
-            model=OLLAMA_MODEL,
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt + (
-                        "\n\nReturn a complete JSON object now. Do not use markdown or commentary."
-                        if attempt > 1 else ""
-                    )
-                }
-            ],
-            format=FactExtractionResult.model_json_schema(),
-            options={"temperature": 0}
-        )
+        try:
+            response = ollama_client.chat(
+                model=OLLAMA_MODEL,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": prompt + (
+                            "\n\nReturn a complete JSON object now. Do not use markdown or commentary."
+                            if attempt > 1 else ""
+                        )
+                    }
+                ],
+                format=FactExtractionResult.model_json_schema(),
+                options={"temperature": 0}
+            )
+        except Exception as error:
+            last_error = error
+            print(f"Ollama call failed (attempt {attempt}/3): {error}. Retrying...")
+            continue
         content = response["message"]["content"]
         try:
             result = parse_response(content)
@@ -396,6 +409,33 @@ Required JSON structure:
 
 
     return result
+
+
+
+# ALREADY-PROCESSED CHUNKS
+
+
+def get_processed_chunk_ids():
+    """
+    Chunk ids that already have facts saved in Postgres.
+
+    Used to resume process_chunks() after a crash without redoing the
+    (slow, LLM-bound) work for chunks that already succeeded.
+    """
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "SELECT DISTINCT source_chunk_id FROM extracted_facts;"
+    )
+
+    processed = {row[0] for row in cursor.fetchall()}
+
+    cursor.close()
+    conn.close()
+
+    return processed
 
 
 
@@ -490,6 +530,29 @@ def process_chunks():
         )
 
         return
+
+
+    already_processed = get_processed_chunk_ids()
+
+    if already_processed:
+
+        remaining = [
+            chunk for chunk in chunks
+            if chunk["id"] not in already_processed
+        ]
+
+        print(
+            f"\nResuming: {len(chunks) - len(remaining)} chunk(s) "
+            f"already have facts saved, skipping them."
+        )
+
+        chunks = remaining
+
+        if not chunks:
+
+            print("Nothing left to process.")
+
+            return
 
 
     conn = get_connection()
